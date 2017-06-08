@@ -3154,20 +3154,8 @@ static __isl_give isl_schedule_node *scale_band(
 						isl_dim_set, dim, n - dim);
 		sizes2 = isl_multi_val_drop_dims(sizes2, isl_dim_set, 0, dim);
 		node = isl_schedule_node_child(node, 0);
-
-		//added by Jie Zhao
-		if(isl_schedule_node_get_type(node) == isl_schedule_node_mark)
-			node = isl_schedule_node_child(node, 0);
-		//added end
-
 		node = isl_schedule_node_band_scale(node, sizes2);
 		node = isl_schedule_node_parent(node);
-		
-		//added by Jie Zhao
-		if(isl_schedule_node_get_type(node) == isl_schedule_node_mark)
-			node = isl_schedule_node_parent(node);
-		//added end
-
 	}
 
 	return isl_schedule_node_band_scale(node, sizes);
