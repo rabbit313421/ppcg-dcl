@@ -20,11 +20,10 @@ __isl_give isl_schedule_node *gpu_tree_move_down_to_depth(
 __isl_give isl_schedule_node *gpu_tree_move_up_to_dynamic_counted_loops(
 	__isl_take isl_schedule_node *node);
 __isl_give isl_schedule_node *gpu_tree_move_down_to_dynamic_counted_loops(
-	__isl_take isl_schedule_node *node, __isl_keep isl_union_set *core);
+	__isl_take isl_schedule_node *node);
 __isl_give isl_schedule_node *gpu_tree_ensure_following_break(
 	__isl_take isl_schedule_node *node, struct ppcg_kernel *kernel);
-int has_dynamic_counted_loops(__isl_take isl_schedule_node *node,
-	__isl_keep isl_union_set *core);
+int has_dynamic_counted_loops(__isl_take isl_schedule_node *node);
 
 int gpu_tree_id_is_sync(__isl_keep isl_id *id, struct ppcg_kernel *kernel);
 __isl_give isl_schedule_node *gpu_tree_ensure_sync_after_core(

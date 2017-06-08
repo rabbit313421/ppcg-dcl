@@ -506,6 +506,21 @@ static void print_kernel(struct gpu_prog *prog, struct ppcg_kernel *kernel,
 	print_options = isl_ast_print_options_set_print_user(print_options,
 						    &print_kernel_stmt, NULL);
 	p = isl_ast_node_print(kernel->tree, p, print_options);
+
+	//added by Jie Zhao
+	if( isl_ast_node_get_type(kernel->tree) == isl_ast_node_for){
+		isl_id *label_id = enclosing_body_has_break(kernel->tree);
+		if(label_id){		
+			const char *label = isl_id_get_name(label_id);
+			p = isl_printer_start_line(p);
+			p = isl_printer_print_str(p, "label_for_");
+			p = isl_printer_print_str(p, label);
+			p = isl_printer_print_str(p, ": ;");
+			p = isl_printer_end_line(p);
+		}
+	}
+	//added end
+	
 	isl_printer_free(p);
 
 	fprintf(cuda->kernel_cu, "}\n");

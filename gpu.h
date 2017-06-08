@@ -287,6 +287,7 @@ struct ppcg_kernel_stmt {
 		} d;
 		//added by Jie Zhao
 		struct {
+			int is_dcl;
 			int is_inner;
 			isl_id *loop_id;
 			struct ppcg_kernel_stmt *stmt;

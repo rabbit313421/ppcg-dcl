@@ -243,16 +243,37 @@ __isl_give isl_schedule_node *gpu_tree_move_down_to_depth(
  * the "dynamic_counted_loops" mark is identified by the domain elements in "core".
  */
 __isl_give isl_schedule_node *gpu_tree_move_down_to_dynamic_counted_loops(
-	__isl_take isl_schedule_node *node, __isl_keep isl_union_set *core)
+	__isl_take isl_schedule_node *node)
 {
-	int is_dynamic_counted_loops;
+	int i, n;
 
-	while ((is_dynamic_counted_loops = node_is_dynamic_counted_loops(node)) == 0)
-		node = core_child(node, core);
-	if (is_dynamic_counted_loops < 0)
-		node = isl_schedule_node_free(node);
+	while (!node_is_dynamic_counted_loops(node)) {
+		if (isl_schedule_node_get_type(node) != isl_schedule_node_sequence &&
+				isl_schedule_node_get_type(node) != isl_schedule_node_set){
+			if(isl_schedule_node_has_children(node))
+				node = isl_schedule_node_child(node, 0);
+			else
+				isl_die(isl_schedule_node_get_ctx(node), isl_error_internal,
+					"dynamic_counted_loops mark node not found", return isl_schedule_node_free(node));
+		}
+		else{
+			n = isl_schedule_node_n_children(node);
+			for (i = 0; i < n; ++i) {
+				node = isl_schedule_node_child(node, i);
+				if(has_dynamic_counted_loops(node))
+					return gpu_tree_move_down_to_dynamic_counted_loops(node);
+				node = isl_schedule_node_parent(node);
+			}
+			break;
+		}
+	}
 
-	return node;
+	if (isl_schedule_node_get_type(node) != isl_schedule_node_sequence &&
+				isl_schedule_node_get_type(node) != isl_schedule_node_set)
+		return node;
+	
+	isl_die(isl_schedule_node_get_ctx(node), isl_error_internal,
+		"dynamic_counted_loops mark node not found", return isl_schedule_node_free(node));;
 }
 
 /* Create a union set containing a single set with a tuple identifier
@@ -563,26 +584,37 @@ static int has_sync_after_core(__isl_keep isl_schedule_node *node,
 /* Check whether the node "node" has a mark node
  * "dynamic_counted_loops".
  */
-int has_dynamic_counted_loops(__isl_take isl_schedule_node *node,
-	__isl_keep isl_union_set *core)
+int has_dynamic_counted_loops(__isl_take isl_schedule_node *node)
 {
-	int has_dynamic_counted_loops = 0;
-	int is_dynamic_counted_loops;
+	int i, n;
 
 	if(!node)
-	    return has_dynamic_counted_loops;
+	    return 0;
 	
 	node = isl_schedule_node_copy(node);
-	while ((is_dynamic_counted_loops = node_is_dynamic_counted_loops(node)) == 0 &&
-			isl_schedule_node_get_type(node) != isl_schedule_node_leaf) {
-		node = core_child(node, core);
+	while (!node_is_dynamic_counted_loops(node)) {
+		if (isl_schedule_node_get_type(node) != isl_schedule_node_sequence &&
+				isl_schedule_node_get_type(node) != isl_schedule_node_set){
+			if(isl_schedule_node_has_children(node))
+				node = isl_schedule_node_child(node, 0);
+			else
+				return 0;
+		}
+		else{
+			n = isl_schedule_node_n_children(node);
+			for (i = 0; i < n; ++i) {
+				node = isl_schedule_node_child(node, i);
+				if(has_dynamic_counted_loops(node))
+					return has_dynamic_counted_loops(node);
+				node = isl_schedule_node_parent(node);
+			}
+			break;
+		}
 	}
-	if(isl_schedule_node_get_type(node) == isl_schedule_node_leaf)
-		return has_dynamic_counted_loops;
-	has_dynamic_counted_loops = 1;
+
 	isl_schedule_node_free(node);
 
-	return has_dynamic_counted_loops;
+	return node_is_dynamic_counted_loops(node);
 }
 
 /* Insert (or extend) an extension on top of "node" that puts
