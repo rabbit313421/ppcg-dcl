@@ -1971,9 +1971,10 @@ static __isl_give isl_printer *print_if_c(__isl_take isl_printer *p,
  * for node has a break node. If so, check the id of its enclosing
  * node.
  */
-__isl_give isl_id *enclosing_body_has_break(__isl_keep isl_ast_node *node)
+int enclosing_body_has_break(__isl_keep isl_ast_node *node)
 {
 	isl_id *id, *return_id = NULL;
+	int n_label = -1;
 	isl_ast_node *body, *child_body;
 	if(node->type == isl_ast_node_for){
 		body = node->u.f.body;
@@ -1991,8 +1992,8 @@ __isl_give isl_id *enclosing_body_has_break(__isl_keep isl_ast_node *node)
 						id = isl_ast_node_get_annotation(child_body);
 						stmt = isl_id_get_user(id);
 						if(stmt->u.b.is_dcl)
-							return_id = stmt->u.b.loop_id;
-						return return_id;
+							n_label = stmt->u.b.n_label;
+						return n_label;
 					}
 				}
 			}
@@ -2028,7 +2029,7 @@ __isl_give isl_id *enclosing_body_has_break(__isl_keep isl_ast_node *node)
 				return enclosing_body_has_break(body);
 		}
 	}*/
-	return return_id;
+	return n_label;
 }
 
 /* Print the body "node" of a for or if node.
@@ -2055,12 +2056,12 @@ static __isl_give isl_printer *print_body_c(__isl_take isl_printer *p,
 		return isl_printer_free(p);
 		
 	//added by Jie Zhao
-	isl_id *label_id = enclosing_body_has_break(node);
+	int label_id = enclosing_body_has_break(node);
 
 	if (!else_node && !need_block(node)) {
 
 		//added by Jie Zhao
-		if(label_id){
+		if(label_id != -1){
 			p = isl_printer_print_str(p, " {");
 		}
 		p = isl_printer_end_line(p);
@@ -2069,18 +2070,17 @@ static __isl_give isl_printer *print_body_c(__isl_take isl_printer *p,
 					isl_ast_print_options_copy(options));
 
 		//added by Jie Zhao
-		if(label_id){		
-			const char *label = isl_id_get_name(label_id);
+		if(label_id != -1){
 			p = isl_printer_start_line(p);
-			p = isl_printer_print_str(p, "label_for_");
-			p = isl_printer_print_str(p, label);
+			p = isl_printer_print_str(p, "label");
+			p = isl_printer_print_int(p, label_id);
 			p = isl_printer_print_str(p, ": ;");
 			p = isl_printer_end_line(p);
 		}
 
 		p = isl_printer_indent(p, -2);
 		//added by Jie Zhao
-		if(label_id){
+		if(label_id != -1){
 			p = isl_printer_start_line(p);
 			p = isl_printer_print_str(p, "}");
 			p = isl_printer_end_line(p);
@@ -2092,6 +2092,16 @@ static __isl_give isl_printer *print_body_c(__isl_take isl_printer *p,
 	p = isl_printer_end_line(p);
 	p = isl_printer_indent(p, 2);
 	p = print_ast_node_c(p, node, options, 1, 0);
+
+	//added by Jie Zhao
+	if(label_id != -1){
+		p = isl_printer_start_line(p);
+		p = isl_printer_print_str(p, "label");
+		p = isl_printer_print_int(p, label_id);
+		p = isl_printer_print_str(p, ": ;");
+		p = isl_printer_end_line(p);
+	}
+	
 	p = isl_printer_indent(p, -2);
 	p = isl_printer_start_line(p);
 	p = isl_printer_print_str(p, "}");
@@ -2371,12 +2381,11 @@ __isl_give isl_printer *isl_ast_node_list_print(
 	for (i = 0; i < list->n; ++i){
 		p = print_ast_node_c(p, list->p[i], options, 1, 1);
 		//Added by Jie Zhao
-		isl_id *label_id = enclosing_body_has_break(list->p[i]);
-		if(label_id){		
-			const char *label = isl_id_get_name(label_id);
+		int label_id = enclosing_body_has_break(list->p[i]);
+		if(label_id != -1){		
 			p = isl_printer_start_line(p);
-			p = isl_printer_print_str(p, "label_for_");
-			p = isl_printer_print_str(p, label);
+			p = isl_printer_print_str(p, "label");
+			p = isl_printer_print_int(p, label_id);
 			p = isl_printer_print_str(p, ": ;");
 			p = isl_printer_end_line(p);
 		}

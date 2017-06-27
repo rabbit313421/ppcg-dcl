@@ -290,6 +290,8 @@ struct ppcg_kernel_stmt {
 			int is_dcl;
 			int is_inner;
 			isl_id *loop_id;
+			int n_condition;
+			int n_label;
 			struct ppcg_kernel_stmt *stmt;
 		} b;
 	} u;
@@ -425,6 +427,9 @@ struct ppcg_kernel {
 	isl_ast_node *tree;
 
 	//added by Jie Zhao
+	int recompute;
+	int n_label;
+	int n_dynamic;
 	isl_schedule_node *dynamic_stmt_node;
 	struct ppcg_kernel_stmt *dynamic_stmt;
 

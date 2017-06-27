@@ -292,22 +292,6 @@ static __isl_give isl_union_set *create_sync_domain(struct ppcg_kernel *kernel)
 	return isl_union_set_from_set(isl_set_universe(space));
 }
 
-//added by Jie Zhao
-/* Create a union set containing a single set with a tuple identifier
- * called "break" and user pointer equal to "kernel".
- */
-static __isl_give isl_union_set *create_break_domain(struct ppcg_kernel *kernel)
-{
-	isl_space *space;
-	isl_id *id;
-	char name[40] = "break";
-
-	space = isl_space_set_alloc(kernel->ctx, 0, 0);
-	id = isl_id_alloc(kernel->ctx, name, kernel);
-	space = isl_space_set_tuple_id(space, isl_dim_set, id);
-	return isl_union_set_from_set(isl_set_universe(space));
-}
-
 /* Is "id" the identifier of a synchronization statement inside "kernel"?
  * That is, does its name start with "sync" and does it point to "kernel"?
  */
@@ -726,16 +710,6 @@ __isl_give isl_schedule_node *gpu_tree_ensure_following_sync(
 	if (has_sync)
 		return node;
 	return insert_sync_after(node, kernel);
-}
-
-//added by Jie Zhao
-/* Insert an extension on top of "node" that puts a break node
- * for "kernel" after "node".
- */
-__isl_give isl_schedule_node *gpu_tree_ensure_following_break(
-	__isl_take isl_schedule_node *node, struct ppcg_kernel *kernel)
-{
-	return insert_break_after(node, kernel);
 }
 
 /* Insert an extension on top of "node" that puts a synchronization node

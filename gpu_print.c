@@ -185,6 +185,7 @@ __isl_give isl_printer *ppcg_kernel_print_copy(__isl_take isl_printer *p,
 	return p;
 }
 
+//added by Jie Zhao
 /* Print break statement for a dynamic counted loop. It first check the condition
  * of the saved statement in a dyanic counted loop (its loop body with an if condition)
  * If found, try to match the loop iterator with the condition. When matched, print
@@ -193,56 +194,83 @@ __isl_give isl_printer *ppcg_kernel_print_copy(__isl_take isl_printer *p,
 __isl_give isl_printer *ppcg_kernel_print_break(__isl_take isl_printer *p,
 	struct ppcg_kernel_stmt *stmt)
 {
-	pet_tree *tree = stmt->u.b.stmt->u.d.stmt->stmt->body;
+	int num = stmt->u.b.n_condition;
+	int has_printed = 0;
 	isl_id *id = stmt->u.b.loop_id;
+	const char* loop_iterator = isl_id_get_name(id);
 	int is_inner =  stmt->u.b.is_inner;
-	pet_expr *expr;
 
-	if(pet_tree_get_type(tree) == pet_tree_if){
-		expr = pet_tree_if_get_cond(tree);
-		expr = condition_has_loop_iterator(expr, id, stmt->u.b.stmt->u.d.ref2expr);
-		if(!expr)
-			return p;
+	pet_expr *checklist[num];
+	int count = 0;
 
-		const char* loop_iterator = isl_id_get_name(id);
-		char* operator;
-		int op = pet_expr_op_get_type(expr);
-		if(op == pet_op_le)
-			operator = ">";
-		else if(op == pet_op_ge)
-			operator = "<";
-		else if(op == pet_op_lt)
-			operator = ">=";
-		else if(op == pet_op_gt)
-			operator = "<=";
-		else if(op == pet_op_eq)
-			operator = "!=";
-		else if(op == pet_op_ne)
-			operator = "==";
-		//expr = pet_expr_get_arg(expr, pet_expr_get_n_arg(expr) - 1);
-		
-	
-		p = isl_printer_start_line(p);
-		p = isl_printer_print_str(p, "if(");
-		if(is_inner)
-			p = print_pet_expr(p, pet_expr_get_arg(expr, 0), 1, stmt->u.b.stmt->u.d.ref2expr);
-		else
-			p = isl_printer_print_str(p, loop_iterator);
-		p = isl_printer_print_str(p, " ");
-		p = isl_printer_print_str(p, operator);
-		p = isl_printer_print_str(p, " ");
-		p = print_pet_expr(p, pet_expr_get_arg(expr, pet_expr_get_n_arg(expr) - 1), 1, stmt->u.b.stmt->u.d.ref2expr);
+	for(int i=0; i < num; i++){
+		pet_tree *tree = stmt->u.b.stmt[i].u.d.stmt->stmt->body;
+		pet_expr *expr;
+
+		if(pet_tree_get_type(tree) == pet_tree_if){
+			expr = pet_tree_if_get_cond(tree);
+			expr = condition_has_loop_iterator(expr, id, stmt->u.b.stmt[i].u.d.ref2expr);
+			if(!expr)
+				continue;
+
+			int redundant = 0;
+			for(int j=0; j < count; j++){
+				if(pet_expr_is_equal(checklist[j], expr)){
+					redundant = 1;
+					break;
+				}
+			}
+			if(redundant)
+				continue;
+			
+			checklist[count++] = expr;
+			
+			char* operator;
+			int op = pet_expr_op_get_type(expr);
+			if(op == pet_op_le)
+				operator = ">";
+			else if(op == pet_op_ge)
+				operator = "<";
+			else if(op == pet_op_lt)
+				operator = ">=";
+			else if(op == pet_op_gt)
+				operator = "<=";
+			else if(op == pet_op_eq)
+				operator = "!=";
+			else if(op == pet_op_ne)
+				operator = "==";
+			//expr = pet_expr_get_arg(expr, pet_expr_get_n_arg(expr) - 1);
+			
+			if(!has_printed){
+				p = isl_printer_start_line(p);
+				p = isl_printer_print_str(p, "if(");
+				has_printed = 1;
+			}
+			else{
+				p = isl_printer_print_str(p, " && ");
+			}
+
+			if(is_inner)
+				p = print_pet_expr(p, pet_expr_get_arg(expr, 0), 1, stmt->u.b.stmt[i].u.d.ref2expr);
+			else
+				p = isl_printer_print_str(p, loop_iterator);
+
+			p = isl_printer_print_str(p, " ");
+			p = isl_printer_print_str(p, operator);
+			p = isl_printer_print_str(p, " ");
+			p = print_pet_expr(p, pet_expr_get_arg(expr, pet_expr_get_n_arg(expr) - 1), 1, stmt->u.b.stmt[i].u.d.ref2expr);
+		}
+	}
+	if(has_printed){
 		p = isl_printer_print_str(p, ")");
 		p = isl_printer_end_line(p);
 		p = isl_printer_start_line(p); 
 		//p = isl_printer_print_str(p, "break;");
-		p = isl_printer_print_str(p, "  goto label_for_");
-		p = isl_printer_print_str(p, loop_iterator);
+		p = isl_printer_print_str(p, "  goto label");
+		p = isl_printer_print_int(p, stmt->u.b.n_label);
 		p = isl_printer_print_str(p, ";");
 		p = isl_printer_end_line(p);
-		return p;
 	}
-	
 	return p;
 }
 

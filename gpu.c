@@ -1905,6 +1905,86 @@ static __isl_give isl_ast_expr *transform_expr(__isl_take isl_ast_expr *expr,
 	return gpu_array_info_linearize_index(data->array, expr);
 }
 
+//added by Jie Zhao
+/* Search the sub expressions of "expr", when an isl_ast_expr_id type
+ * is returned, check whether it is equal to "id".
+ */
+int find_in_ast_expr(__isl_keep isl_ast_expr *expr,
+	__isl_keep isl_id *id)
+{
+	isl_ast_expr *sub_expr;
+	int found = 0;
+
+	if(isl_ast_expr_get_type(expr) == isl_ast_expr_id){
+		if(isl_ast_expr_get_id(expr) == id){
+			found = 1;
+			return found;
+		}
+	}
+
+	if(isl_ast_expr_get_type(expr) == isl_ast_expr_op){
+		int n = isl_ast_expr_get_op_n_arg(expr);
+		for(int i = 0; i < n; i++){
+			sub_expr = isl_ast_expr_get_op_arg(expr, i);
+			found = find_in_ast_expr(sub_expr, id);
+			if(found)
+				break;
+		}
+		return found;
+	}
+
+	return found;
+}
+
+/* Search the sub expressions of "expr", if it is pet_expr_access type,
+ * find its ast_expr, and call the find_in_ast_expr function.
+ * This function should return a statement with a "<", ">", "<=", ">=",
+ * "!=", "==" operator.
+ */
+__isl_give pet_expr *condition_has_loop_iterator(__isl_keep pet_expr *expr,
+	__isl_keep isl_id *id, __isl_keep isl_id_to_ast_expr *ref2expr)
+{
+	int matched = 0;
+	pet_expr *sub_expr;
+
+	if(pet_expr_get_type(expr) == pet_expr_access){
+		isl_ast_expr *ast_expr;
+
+		if (!isl_id_to_ast_expr_has(ref2expr, pet_expr_access_get_ref_id(expr)))
+			return NULL;
+
+		ast_expr = isl_id_to_ast_expr_get(ref2expr,
+						isl_id_copy(pet_expr_access_get_ref_id(expr)));
+
+		int found = find_in_ast_expr(ast_expr, id);
+
+		if(found)
+			return expr;
+		
+		return NULL;
+	}
+
+	if(pet_expr_get_type(expr) == pet_expr_op){
+		int n = pet_expr_get_n_arg(expr);
+		int op = pet_expr_op_get_type(expr);
+		for(int i = 0; i < n; i++){
+			sub_expr = pet_expr_get_arg(expr, i);
+			sub_expr = condition_has_loop_iterator(sub_expr, id, ref2expr);
+			if(sub_expr)
+				break;
+		}
+		if((op == pet_op_le || op == pet_op_ge ||
+			op == pet_op_lt || op == pet_op_gt ||
+			op == pet_op_eq || op == pet_op_ne) &&
+			sub_expr){
+				return expr;
+			}
+		return sub_expr;
+	}
+
+	return NULL;
+}
+
 /* This function is called for each instance of a user statement
  * in the kernel "kernel", identified by "gpu_stmt".
  * "kernel" may be NULL if we are not inside a kernel.
@@ -1961,12 +2041,15 @@ static __isl_give isl_ast_node *create_domain_leaf(
 					    &transform_expr, &data);
 
 	//added by Jie Zhao
-	isl_union_set *filter = isl_schedule_node_filter_get_filter(kernel->dynamic_stmt_node);
-	isl_set *set = isl_set_from_union_set(filter);
-	id = isl_set_get_tuple_id(set);
+	if(kernel->recompute){
+		kernel->n_dynamic = 0;
+		kernel->recompute = 0;
+	}
 
-	if(id == gpu_stmt->id){
-		kernel->dynamic_stmt = stmt;
+	pet_tree *tree = gpu_stmt->stmt->body;
+	if(pet_tree_get_type(tree) == pet_tree_if){
+		kernel->dynamic_stmt[kernel->n_dynamic] = *stmt;
+		kernel->n_dynamic++;
 	}
 	//added end
 
@@ -2142,84 +2225,6 @@ struct ppcg_at_domain_data {
 };
 
 //added by Jie Zhao
-/* Search the sub expressions of "expr", when an isl_ast_expr_id type
- * is returned, check whether it is equal to "id".
- */
-int find_in_ast_expr(__isl_keep isl_ast_expr *expr,
-	__isl_keep isl_id *id)
-{
-	isl_ast_expr *sub_expr;
-	int found = 0;
-
-	if(isl_ast_expr_get_type(expr) == isl_ast_expr_id){
-		if(isl_ast_expr_get_id(expr) == id){
-			found = 1;
-			return found;
-		}
-	}
-
-	if(isl_ast_expr_get_type(expr) == isl_ast_expr_op){
-		int n = isl_ast_expr_get_op_n_arg(expr);
-		for(int i = 0; i < n; i++){
-			sub_expr = isl_ast_expr_get_op_arg(expr, i);
-			found = find_in_ast_expr(sub_expr, id);
-			if(found)
-				break;
-		}
-		return found;
-	}
-
-	return found;
-}
-
-/* Search the sub expressions of "expr", if it is pet_expr_access type,
- * find its ast_expr, and call the find_in_ast_expr function.
- * This function should return a statement with a "<", ">", "<=", ">=",
- * "!=", "==" operator.
- */
-__isl_give pet_expr *condition_has_loop_iterator(__isl_keep pet_expr *expr,
-	__isl_keep isl_id *id, __isl_keep isl_id_to_ast_expr *ref2expr)
-{
-	int matched = 0;
-	pet_expr *sub_expr;
-
-	if(pet_expr_get_type(expr) == pet_expr_access){
-		isl_ast_expr *ast_expr;
-
-		if (!isl_id_to_ast_expr_has(ref2expr, pet_expr_access_get_ref_id(expr)))
-			return NULL;
-
-		ast_expr = isl_id_to_ast_expr_get(ref2expr,
-						isl_id_copy(pet_expr_access_get_ref_id(expr)));
-
-		int found = find_in_ast_expr(ast_expr, id);
-
-		if(found)
-			return expr;
-		
-		return NULL;
-	}
-
-	if(pet_expr_get_type(expr) == pet_expr_op){
-		int n = pet_expr_get_n_arg(expr);
-		int op = pet_expr_op_get_type(expr);
-		for(int i = 0; i < n; i++){
-			sub_expr = pet_expr_get_arg(expr, i);
-			sub_expr = condition_has_loop_iterator(sub_expr, id, ref2expr);
-			if(sub_expr)
-				break;
-		}
-		if((op == pet_op_le || op == pet_op_ge ||
-			op == pet_op_lt || op == pet_op_gt ||
-			op == pet_op_eq || op == pet_op_ne) &&
-			sub_expr){
-				return expr;
-			}
-		return sub_expr;
-	}
-
-	return NULL;
-}
 /* Create a break ppcg_kernel_stmt and
  * attach it to the node "node" representing the break.
  */
@@ -2238,16 +2243,30 @@ static __isl_give isl_ast_node *create_break_leaf(
 	stmt->u.b.is_dcl = 1;
 	stmt->u.b.is_inner = (isl_ast_build_get_depth(build) - 1) / (isl_id_list_n_id(isl_ast_build_get_iterators(build))/2);
 	stmt->u.b.loop_id = isl_ast_build_get_iterator_id(build, isl_ast_build_get_depth(build) - 1);
-	stmt->u.b.stmt = data->kernel->dynamic_stmt;
 
-	pet_tree *tree = stmt->u.b.stmt->u.d.stmt->stmt->body;
-	pet_expr *expr;
+	if(!data->kernel->recompute)
+		data->kernel->recompute = 1;
 
-	if(pet_tree_get_type(tree) == pet_tree_if){
-		expr = pet_tree_if_get_cond(tree);
-		expr = condition_has_loop_iterator(expr, stmt->u.b.loop_id, stmt->u.b.stmt->u.d.ref2expr);
-		if(!expr)
-			stmt->u.b.is_dcl = 0;
+	stmt->u.b.n_condition = data->kernel->n_dynamic;
+	stmt->u.b.stmt = isl_calloc_array(data->kernel->ctx, struct ppcg_kernel_stmt, data->kernel->n_dynamic);
+
+	int is_dcl = 0;
+	for(int i=0; i<data->kernel->n_dynamic; i++){
+		stmt->u.b.stmt[i] = data->kernel->dynamic_stmt[i];
+		pet_tree *tree = stmt->u.b.stmt[i].u.d.stmt->stmt->body;
+		pet_expr *expr;
+		if(pet_tree_get_type(tree) == pet_tree_if){
+			expr = pet_tree_if_get_cond(tree);
+			expr = condition_has_loop_iterator(expr, stmt->u.b.loop_id, stmt->u.b.stmt[i].u.d.ref2expr);
+			if(expr)
+				is_dcl = 1;
+		}
+	}
+	if(!is_dcl)
+		stmt->u.b.is_dcl = 0;
+	else{
+		stmt->u.b.n_label = data->kernel->n_label;
+		data->kernel->n_label++;
 	}
 
 	id = isl_id_alloc(data->kernel->ctx, "break", stmt);
@@ -3406,9 +3425,22 @@ static __isl_give isl_schedule_node *add_break(struct ppcg_kernel *kernel,
 	__isl_take isl_schedule_node *node)
 {
 
-	node = gpu_tree_ensure_following_break(node, kernel);
+	isl_union_set *domain;
+	isl_schedule_node *graft;
 
-	node = gpu_tree_move_up_to_dynamic_counted_loops(node);
+	if (!node)
+		return NULL;
+		
+	isl_space *space;
+	isl_id *id;
+	char name[40] = "break";
+
+	space = isl_space_set_alloc(kernel->ctx, 0, 0);
+	id = isl_id_alloc(kernel->ctx, name, kernel);
+	space = isl_space_set_tuple_id(space, isl_dim_set, id);
+	domain =  isl_union_set_from_set(isl_set_universe(space));
+	graft = isl_schedule_node_from_domain(domain);
+	node = isl_schedule_node_graft_after(node, graft);
 
 	return node;
 }
@@ -4126,6 +4158,21 @@ static __isl_give isl_schedule_node *create_kernel(struct gpu_gen *gen,
 		node = scale_band(node, isl_multi_val_copy(sizes));
 		
 	//added by Jie Zhao
+	node = gpu_tree_move_down_to_thread(node, kernel->core);
+	int n = 1;
+	if(has_dynamic_counted_loops(node)){
+		node = gpu_tree_move_down_to_dynamic_counted_loops(node);
+		node = isl_schedule_node_get_child(node,0);
+		n = isl_schedule_node_n_children(node);
+	}
+	kernel->dynamic_stmt_node = isl_schedule_node_get_child(node, n - 1);
+	kernel->dynamic_stmt = isl_calloc_array(kernel->ctx, struct ppcg_kernel_stmt, n);
+	kernel->n_label = 0;
+	kernel->n_dynamic = 0;
+	kernel->recompute = 0;
+	node = gpu_tree_move_up_to_kernel(node);
+	node = isl_schedule_node_get_child(node,0);
+
 	int need_mark = 0;
 	int band_dimension = 0;
 	while(isl_schedule_node_get_type(node) == isl_schedule_node_band){
@@ -4247,9 +4294,7 @@ static __isl_give isl_schedule_node *create_kernel(struct gpu_gen *gen,
 	while(has_dynamic_counted_loops(node)){
 		node = gpu_tree_move_down_to_dynamic_counted_loops(node);
 		node = add_break(kernel, node);
-		kernel->dynamic_stmt_node = isl_schedule_node_delete(node);
-		int n = isl_schedule_node_n_children(kernel->dynamic_stmt_node);
-		kernel->dynamic_stmt_node = isl_schedule_node_get_child(kernel->dynamic_stmt_node, n - 1);
+		node = isl_schedule_node_delete(node);
 		node = gpu_tree_move_up_to_kernel(node);
 	}
 	node = gpu_tree_move_up_to_kernel(node);

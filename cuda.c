@@ -509,12 +509,11 @@ static void print_kernel(struct gpu_prog *prog, struct ppcg_kernel *kernel,
 
 	//added by Jie Zhao
 	if( isl_ast_node_get_type(kernel->tree) == isl_ast_node_for){
-		isl_id *label_id = enclosing_body_has_break(kernel->tree);
-		if(label_id){		
-			const char *label = isl_id_get_name(label_id);
+		int label_id = enclosing_body_has_break(kernel->tree);
+		if(label_id != -1){		
 			p = isl_printer_start_line(p);
-			p = isl_printer_print_str(p, "label_for_");
-			p = isl_printer_print_str(p, label);
+			p = isl_printer_print_str(p, "label");
+			p = isl_printer_print_int(p, label_id);
 			p = isl_printer_print_str(p, ": ;");
 			p = isl_printer_end_line(p);
 		}
