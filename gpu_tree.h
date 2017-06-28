@@ -17,6 +17,7 @@ __isl_give isl_schedule_node *gpu_tree_move_down_to_depth(
 	__isl_keep isl_union_set *core);
 
 //added by Jie Zhao
+int node_is_dynamic_counted_loops(__isl_keep isl_schedule_node *node);
 __isl_give isl_schedule_node *gpu_tree_move_up_to_dynamic_counted_loops(
 	__isl_take isl_schedule_node *node);
 __isl_give isl_schedule_node *gpu_tree_move_down_to_dynamic_counted_loops(

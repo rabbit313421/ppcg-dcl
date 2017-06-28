@@ -2324,7 +2324,7 @@ static __isl_give isl_ast_node *at_domain(__isl_take isl_ast_node *node,
 		return node;
 	//added by Jie Zhao
 	if (!strcmp(name, "break"))
-	    return create_break_leaf(data, node, build); 
+	    return create_break_leaf(data, node, build);
 	if (is_sync < 0)
 		return isl_ast_node_free(node);
 	if (!strcmp(name, "read") || !strcmp(name, "write")) {
@@ -4158,20 +4158,19 @@ static __isl_give isl_schedule_node *create_kernel(struct gpu_gen *gen,
 		node = scale_band(node, isl_multi_val_copy(sizes));
 		
 	//added by Jie Zhao
-	node = gpu_tree_move_down_to_thread(node, kernel->core);
 	int n = 1;
-	if(has_dynamic_counted_loops(node)){
-		node = gpu_tree_move_down_to_dynamic_counted_loops(node);
-		node = isl_schedule_node_get_child(node,0);
-		n = isl_schedule_node_n_children(node);
+	isl_schedule_node *temp = isl_schedule_node_copy(node);
+	temp = gpu_tree_move_down_to_thread(temp, kernel->core);
+	if(has_dynamic_counted_loops(temp)){
+		temp = gpu_tree_move_down_to_dynamic_counted_loops(temp);
+		temp = isl_schedule_node_get_child(temp,0);
+		n = isl_schedule_node_n_children(temp);
 	}
-	kernel->dynamic_stmt_node = isl_schedule_node_get_child(node, n - 1);
 	kernel->dynamic_stmt = isl_calloc_array(kernel->ctx, struct ppcg_kernel_stmt, n);
 	kernel->n_label = 0;
 	kernel->n_dynamic = 0;
 	kernel->recompute = 0;
-	node = gpu_tree_move_up_to_kernel(node);
-	node = isl_schedule_node_get_child(node,0);
+	isl_schedule_node_free(temp);
 
 	int need_mark = 0;
 	int band_dimension = 0;
@@ -4179,8 +4178,7 @@ static __isl_give isl_schedule_node *create_kernel(struct gpu_gen *gen,
 			node = isl_schedule_node_child(node, 0);
 			band_dimension++;
 	}
-	if((isl_schedule_node_get_type(node) == isl_schedule_node_mark) &&
-			!strcmp(isl_id_get_name(isl_schedule_node_mark_get_id(node)), "dynamic_counted_loops")){
+	if(node_is_dynamic_counted_loops(node)){
 			for(int i = 0; i < band_dimension; i++){
 				node = isl_schedule_node_parent(node);
 				if(i == 0)
@@ -4190,8 +4188,9 @@ static __isl_give isl_schedule_node *create_kernel(struct gpu_gen *gen,
 				for(int i = 0; i < need_mark; i++){
 					node = isl_schedule_node_band_split(node, need_mark - i);
 					node = isl_schedule_node_child(node, 0);
-					id = isl_id_alloc(gen->ctx, "dynamic_counted_loops", NULL);
-					node = isl_schedule_node_insert_mark(node, id);
+					isl_id *dcl_id= isl_id_alloc(gen->ctx, "dynamic_counted_loops", NULL);
+					node = isl_schedule_node_insert_mark(node, dcl_id);
+					isl_id_free(dcl_id);
 					node = isl_schedule_node_parent(node);
 				}
 		}
@@ -4225,8 +4224,7 @@ static __isl_give isl_schedule_node *create_kernel(struct gpu_gen *gen,
 			node = isl_schedule_node_child(node, 0);
 			band_dimension++;
 	}
-	if((isl_schedule_node_get_type(node) == isl_schedule_node_mark) &&
-			!strcmp(isl_id_get_name(isl_schedule_node_mark_get_id(node)), "dynamic_counted_loops")){
+	if(node_is_dynamic_counted_loops(node)){
 			for(int i = 0; i < band_dimension; i++){
 				node = isl_schedule_node_parent(node);
 				if(i == 0)
@@ -4236,8 +4234,9 @@ static __isl_give isl_schedule_node *create_kernel(struct gpu_gen *gen,
 				for(int i = 0; i < need_mark; i++){
 					node = isl_schedule_node_band_split(node, need_mark - i);
 					node = isl_schedule_node_child(node, 0);
-					id = isl_id_alloc(gen->ctx, "dynamic_counted_loops", NULL);
-					node = isl_schedule_node_insert_mark(node, id);
+					isl_id *dcl_id = isl_id_alloc(gen->ctx, "dynamic_counted_loops", NULL);
+					node = isl_schedule_node_insert_mark(node, dcl_id);
+					isl_id_free(dcl_id);
 					node = isl_schedule_node_parent(node);
 				}
 		}
@@ -4401,8 +4400,7 @@ static __isl_give isl_schedule_node *mark_outer_permutable(
 					node = isl_schedule_node_child(node, 0);
 					band_dimension++;
 			}
-			if((isl_schedule_node_get_type(node) == isl_schedule_node_mark) &&
-			!strcmp(isl_id_get_name(isl_schedule_node_mark_get_id(node)), "dynamic_counted_loops")){
+			if(node_is_dynamic_counted_loops(node)){
 					marked_dcl = 1;
 			}
 			for(int i = 0; i < band_dimension; i++){

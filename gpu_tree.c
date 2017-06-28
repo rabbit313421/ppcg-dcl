@@ -73,7 +73,7 @@ static int node_is_thread(__isl_keep isl_schedule_node *node)
 //added by Jie Zhao
 /* Is "node" a mark node with an identifier called "thread"?
  */
-static int node_is_dynamic_counted_loops(__isl_keep isl_schedule_node *node)
+int node_is_dynamic_counted_loops(__isl_keep isl_schedule_node *node)
 {
 	return is_marked(node, "dynamic_counted_loops");
 }
@@ -572,8 +572,10 @@ int has_dynamic_counted_loops(__isl_take isl_schedule_node *node)
 {
 	int i, n;
 
+	int has_dcl = 0;
+
 	if(!node)
-	    return 0;
+	    return has_dcl;
 	
 	node = isl_schedule_node_copy(node);
 	while (!node_is_dynamic_counted_loops(node)) {
@@ -582,23 +584,24 @@ int has_dynamic_counted_loops(__isl_take isl_schedule_node *node)
 			if(isl_schedule_node_has_children(node))
 				node = isl_schedule_node_child(node, 0);
 			else
-				return 0;
+				break;
 		}
 		else{
 			n = isl_schedule_node_n_children(node);
 			for (i = 0; i < n; ++i) {
 				node = isl_schedule_node_child(node, i);
 				if(has_dynamic_counted_loops(node))
-					return has_dynamic_counted_loops(node);
+					has_dcl = 1;
 				node = isl_schedule_node_parent(node);
 			}
 			break;
 		}
 	}
 
-	isl_schedule_node_free(node);
+	if(!has_dcl)
+		has_dcl = node_is_dynamic_counted_loops(node);
 
-	return node_is_dynamic_counted_loops(node);
+	return has_dcl;
 }
 
 /* Insert (or extend) an extension on top of "node" that puts

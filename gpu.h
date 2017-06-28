@@ -430,7 +430,6 @@ struct ppcg_kernel {
 	int recompute;
 	int n_label;
 	int n_dynamic;
-	isl_schedule_node *dynamic_stmt_node;
 	struct ppcg_kernel_stmt *dynamic_stmt;
 
 };
